@@ -2,22 +2,14 @@
     "version": 2,
     "builds": [
       {
-        "src": "src/middleware/**/*.ts",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "src/pages/**/*",
+        "src": "package.json",
         "use": "@vercel/next"
       }
     ],
     "routes": [
       {
-        "src": "/api/(.*)",
-        "dest": "/src/middleware/$1"
-      },
-      {
         "src": "/(.*)",
-        "dest": "/src/pages/$1"
+        "dest": "/"
       }
     ]
   }
