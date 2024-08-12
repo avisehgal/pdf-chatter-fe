@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import formidable, { IncomingForm } from 'formidable';
+import formidable, { IncomingForm, File as FormidableFile, Files } from 'formidable';
 import fs from 'fs';
 import path from 'path';
 
@@ -21,20 +21,19 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     keepExtensions: true,
   });
 
-  form.parse(req, (err, fields, files) => {
+  form.parse(req, (err, fields, files: Files) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
 
-    const file = Array.isArray(files.file) ? files.file[0] : files.file as formidable.File;
+    // Check if files.file is defined
+    const file = files.file ? (Array.isArray(files.file) ? files.file[0] : files.file) : undefined;
 
-    if (!file) {
+    if (!file || !(file as FormidableFile).newFilename) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-    res.status(200).json({ filename: file.newFilename });
+    res.status(200).json({ filename: (file as FormidableFile).newFilename });
   });
 };
 

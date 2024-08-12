@@ -25,11 +25,11 @@ const Upload: React.FC<UploadProps> = ({ onFileUpload }) => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('/api/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+        const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/upload`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
       console.log(response.data);
     } catch (error) {
       console.error(error);
