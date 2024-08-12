@@ -1,6 +1,5 @@
-// src/pages/api/upload.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import formidable from 'formidable';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import formidable, { IncomingForm, File as FormidableFile } from 'formidable';
 import fs from 'fs';
 import path from 'path';
 
@@ -17,7 +16,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-  const form = new formidable.IncomingForm({
+  const form = new IncomingForm({
     uploadDir,
     keepExtensions: true,
   });
@@ -26,7 +25,14 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    res.status(200).json({ files });
+
+    const file = Array.isArray(files.file) ? files.file[0] : files.file as FormidableFile;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    res.status(200).json({ filename: file.newFilename });
   });
 };
 
