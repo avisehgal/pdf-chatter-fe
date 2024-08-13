@@ -1,5 +1,5 @@
 // src/components/Layout.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import Upload from './Upload';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +15,7 @@ const Layout: React.FC = () => {
   const [message, setMessage] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const botMessageRef = useRef<string>('');  // Ref to hold the current bot message
 
   const handleFileUpload = (fileName: string) => {
     setUploadedFileName(fileName);
@@ -27,35 +28,64 @@ const Layout: React.FC = () => {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message) return;
-  
+
     const newMessage = { text: message, sender: 'user' as const };
     setMessages((prevMessages) => [...prevMessages, newMessage]);
     setMessage('');
     setLoading(true);
-  
-    try {
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/chat`, new URLSearchParams({
-        query: message
-      }), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-  
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        { text: response.data.response, sender: 'bot' },
-      ]);
-    } catch (error) {
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        { text: `ERROR: ${(error as any).message}`, sender: 'bot', error: true },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
+    const botMessageRef = { current: "" };  // Ref to store the ongoing bot message
+
+    try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ query: message })
+        });
+
+        if (!response.body) throw new Error("ReadableStream not supported by response body");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          let token = chunk.replace(/^data: /, '').trim();
+      
+          // Check if the current token should be joined with the previous token
+          if (botMessageRef.current.endsWith(' ') || token.startsWith(' ')) {
+              botMessageRef.current += token;
+          } else {
+              botMessageRef.current += ` ${token}`;
+          }
+      
+          setMessages((prevMessages) => {
+              const lastMessage = prevMessages[prevMessages.length - 1];
+              if (lastMessage.sender === 'bot') {
+                  return [
+                      ...prevMessages.slice(0, prevMessages.length - 1),
+                      { ...lastMessage, text: botMessageRef.current }
+                  ];
+              }
+              return [...prevMessages, { text: botMessageRef.current, sender: 'bot' }];
+          });
+      }
+      
+
+        setLoading(false);
+    } catch (error) {
+        setMessages((prevMessages) => [
+            ...prevMessages,
+            { text: `ERROR: ${(error as any).message}`, sender: 'bot', error: true },
+        ]);
+        setLoading(false);
+    }
+};
 
   return (
     <div className="flex h-screen flex-col">
