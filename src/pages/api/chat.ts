@@ -1,34 +1,42 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs';
-import path from 'path';
-import pdf from 'pdf-parse';
 
-type Data = {
-  response?: string;
-  error?: string;
-};
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === 'GET') {
+    const { query } = req.query;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Data>) {
-  if (req.method === 'POST') {
-    const { query, filename } = req.body;
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ query: query as string }),
+    });
 
-    try {
-      const filePath = path.join(process.cwd(), 'public', 'uploads', filename);
-      const dataBuffer = fs.readFileSync(filePath);
-
-      const data = await pdf(dataBuffer);
-      const extractedText = data.text;
-
-      // Here you would typically send `extractedText` and `query` to your LLM or other backend service
-      const responseText = `Simulated response for query '${query}' on extracted text: '${extractedText.slice(0, 100)}...'`;
-
-      return res.status(200).json({ response: responseText });
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ error: 'Failed to process the PDF' });
+    if (!response.body) {
+      return res.status(500).json({ error: 'Failed to stream response' });
     }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    let done = false;
+
+    while (!done) {
+      const { value, done: readerDone } = await reader.read();
+      done = readerDone;
+      if (value) {
+        const chunk = decoder.decode(value, { stream: true });
+        res.write(chunk);
+      }
+    }
+
+    res.end();
   } else {
-    res.setHeader('Allow', ['POST']);
+    res.setHeader('Allow', ['GET']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
